@@ -1,15 +1,24 @@
 """数据库模型 - SQLite via SQLModel"""
-from datetime import datetime, timezone
-from typing import Optional
-from sqlalchemy import UniqueConstraint, inspect
-from sqlmodel import Field, SQLModel, create_engine, Session, select
 import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
+from sqlalchemy import UniqueConstraint, inspect
+from sqlmodel import Field, SQLModel, Session, create_engine, select
 
 
 def _utcnow():
     return datetime.now(timezone.utc)
 
-DATABASE_URL = "sqlite:///account_manager.db"
+
+def _default_database_url() -> str:
+    database_path = Path(__file__).resolve().parent.parent / "account_manager.db"
+    return f"sqlite:///{database_path}"
+
+
+DATABASE_URL = os.getenv("ACCOUNT_MANAGER_DATABASE_URL", _default_database_url())
 engine = create_engine(DATABASE_URL)
 
 

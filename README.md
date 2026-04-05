@@ -106,6 +106,8 @@ python3 -m camoufox fetch
 - 启动入口统一为 `main:app`
 - 后端接口统一位于 `/api/*`
 - 前端默认直接请求 `/api`
+- 前后端接口文档见 [docs/frontend-api-contract.md](docs/frontend-api-contract.md)
+- 新的 C 端 / 管理端独立 API 项目见 [customer_portal_api/README.md](customer_portal_api/README.md)
 
 ### 开发模式（前端热更新）
 

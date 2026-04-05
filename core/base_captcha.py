@@ -1,6 +1,8 @@
 """验证码解决器基类"""
 from abc import ABC, abstractmethod
 
+from core.tls import insecure_request
+
 
 class BaseCaptcha(ABC):
     @abstractmethod
@@ -20,21 +22,20 @@ class YesCaptcha(BaseCaptcha):
         self.api = "https://api.yescaptcha.com"
 
     def solve_turnstile(self, page_url: str, site_key: str) -> str:
-        import requests, time, urllib3
-        urllib3.disable_warnings()
-        r = requests.post(f"{self.api}/createTask", json={
+        import requests, time
+        r = insecure_request(requests.post, f"{self.api}/createTask", json={
             "clientKey": self.client_key,
             "task": {"type": "TurnstileTaskProxyless",
                      "websiteURL": page_url, "websiteKey": site_key}
-        }, timeout=30, verify=False)
+        }, timeout=30)
         task_id = r.json().get("taskId")
         if not task_id:
             raise RuntimeError(f"YesCaptcha 创建任务失败: {r.text}")
         for _ in range(60):
             time.sleep(3)
-            d = requests.post(f"{self.api}/getTaskResult", json={
+            d = insecure_request(requests.post, f"{self.api}/getTaskResult", json={
                 "clientKey": self.client_key, "taskId": task_id
-            }, timeout=30, verify=False).json()
+            }, timeout=30).json()
             if d.get("status") == "ready":
                 return d["solution"]["token"]
             if d.get("errorId", 0) != 0:

@@ -274,6 +274,7 @@ class ChatGPTPlatform(BasePlatform):
 
         elif action_id == "upload_cpa":
             from platforms.chatgpt.cpa_upload import upload_to_cpa, generate_token_json
+            a.user_id = account.user_id or ""
             token_data = generate_token_json(a)
             ok, msg = upload_to_cpa(token_data, api_url=params.get("api_url"),
                                     api_key=params.get("api_key"))

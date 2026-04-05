@@ -33,5 +33,15 @@
     "supported_executors": ["protocol", "headless", "headed"],
     "supported_identity_modes": ["mailbox", "oauth_browser"],
     "supported_oauth_providers": ["google", "github"]
+  },
+  "blink": {
+    "supported_executors": ["protocol"],
+    "supported_identity_modes": ["mailbox"],
+    "supported_oauth_providers": []
+  },
+  "anything": {
+    "supported_executors": ["protocol"],
+    "supported_identity_modes": ["mailbox"],
+    "supported_oauth_providers": []
   }
 }

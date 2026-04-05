@@ -5,6 +5,8 @@ import html
 import re
 from urllib.parse import urlencode, urlparse
 
+from core.tls import insecure_request, mark_session_insecure, suppress_insecure_request_warning
+
 
 @dataclass
 class MailboxAccount:
@@ -510,15 +512,15 @@ class DuckMailMailbox(BaseMailbox):
         domain = self.provider_url.replace("https://api.", "").replace("https://", "")
         address = f"{username}@{domain}"
         # 创建账号
-        r = requests.post(f"{self.api}/api/mail?endpoint=%2Faccounts",
+        r = insecure_request(requests.post, f"{self.api}/api/mail?endpoint=%2Faccounts",
             json={"address": address, "password": password},
-            headers=self._common_headers(), proxies=self.proxy, timeout=15, verify=False)
+            headers=self._common_headers(), proxies=self.proxy, timeout=15)
         data = r.json()
         self._address = data.get("address", address)
         # 登录获取 token
-        r2 = requests.post(f"{self.api}/api/mail?endpoint=%2Ftoken",
+        r2 = insecure_request(requests.post, f"{self.api}/api/mail?endpoint=%2Ftoken",
             json={"address": self._address, "password": password},
-            headers=self._common_headers(), proxies=self.proxy, timeout=15, verify=False)
+            headers=self._common_headers(), proxies=self.proxy, timeout=15)
         self._token = r2.json().get("token", "")
         return MailboxAccount(
             email=self._address,
@@ -557,10 +559,10 @@ class DuckMailMailbox(BaseMailbox):
     def get_current_ids(self, account: MailboxAccount) -> set:
         import requests
         try:
-            r = requests.get(f"{self.api}/api/mail?endpoint=%2Fmessages%3Fpage%3D1",
+            r = insecure_request(requests.get, f"{self.api}/api/mail?endpoint=%2Fmessages%3Fpage%3D1",
                 headers={"authorization": f"Bearer {account.account_id}",
                          "x-api-provider-base-url": self.provider_url},
-                proxies=self.proxy, timeout=10, verify=False)
+                proxies=self.proxy, timeout=10)
             return {str(m["id"]) for m in r.json().get("hydra:member", [])}
         except Exception:
             return set()
@@ -572,10 +574,10 @@ class DuckMailMailbox(BaseMailbox):
         start = time.time()
         while time.time() - start < timeout:
             try:
-                r = requests.get(f"{self.api}/api/mail?endpoint=%2Fmessages%3Fpage%3D1",
+                r = insecure_request(requests.get, f"{self.api}/api/mail?endpoint=%2Fmessages%3Fpage%3D1",
                     headers={"authorization": f"Bearer {account.account_id}",
                              "x-api-provider-base-url": self.provider_url},
-                    proxies=self.proxy, timeout=10, verify=False)
+                    proxies=self.proxy, timeout=10)
                 msgs = r.json().get("hydra:member", [])
                 for msg in msgs:
                     mid = str(msg.get("id") or msg.get("msgid") or "")
@@ -583,10 +585,10 @@ class DuckMailMailbox(BaseMailbox):
                     seen.add(mid)
                     # 请求邮件详情获取完整 text
                     try:
-                        r2 = requests.get(f"{self.api}/api/mail?endpoint=%2Fmessages%2F{mid}",
+                        r2 = insecure_request(requests.get, f"{self.api}/api/mail?endpoint=%2Fmessages%2F{mid}",
                             headers={"authorization": f"Bearer {account.account_id}",
                                      "x-api-provider-base-url": self.provider_url},
-                            proxies=self.proxy, timeout=10, verify=False)
+                            proxies=self.proxy, timeout=10)
                         detail = r2.json()
                         body = str(detail.get("text") or "") + " " + str(detail.get("subject") or "")
                     except Exception:
@@ -606,10 +608,10 @@ class DuckMailMailbox(BaseMailbox):
         start = time.time()
         while time.time() - start < timeout:
             try:
-                r = requests.get(f"{self.api}/api/mail?endpoint=%2Fmessages%3Fpage%3D1",
+                r = insecure_request(requests.get, f"{self.api}/api/mail?endpoint=%2Fmessages%3Fpage%3D1",
                     headers={"authorization": f"Bearer {account.account_id}",
                              "x-api-provider-base-url": self.provider_url},
-                    proxies=self.proxy, timeout=10, verify=False)
+                    proxies=self.proxy, timeout=10)
                 msgs = r.json().get("hydra:member", [])
                 for msg in msgs:
                     mid = str(msg.get("id") or msg.get("msgid") or "")
@@ -617,10 +619,10 @@ class DuckMailMailbox(BaseMailbox):
                         continue
                     seen.add(mid)
                     try:
-                        r2 = requests.get(f"{self.api}/api/mail?endpoint=%2Fmessages%2F{mid}",
+                        r2 = insecure_request(requests.get, f"{self.api}/api/mail?endpoint=%2Fmessages%2F{mid}",
                             headers={"authorization": f"Bearer {account.account_id}",
                                      "x-api-provider-base-url": self.provider_url},
-                            proxies=self.proxy, timeout=10, verify=False)
+                            proxies=self.proxy, timeout=10)
                         detail = r2.json()
                         body = str(detail.get("text") or "") + " " + str(detail.get("html") or "") + " " + str(detail.get("subject") or "")
                     except Exception:
@@ -790,7 +792,7 @@ class MoeMailMailbox(BaseMailbox):
 
         s = requests.Session()
         s.proxies = self.proxy
-        s.verify = False
+        mark_session_insecure(s)
         ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
         s.headers.update({"user-agent": ua, "origin": self.api, "referer": f"{self.api}/zh-CN/login"})
         return s
@@ -826,21 +828,23 @@ class MoeMailMailbox(BaseMailbox):
         if not (self._configured_username and self._configured_password):
             raise RuntimeError("MoeMail 未配置可复用账号，请提供用户名密码或 session-token")
 
-        csrf_r = s.get(f"{self.api}/api/auth/csrf", timeout=10)
+        with suppress_insecure_request_warning():
+            csrf_r = s.get(f"{self.api}/api/auth/csrf", timeout=10)
         csrf = csrf_r.json().get("csrfToken", "")
-        login_resp = s.post(
-            f"{self.api}/api/auth/callback/credentials",
-            headers={"content-type": "application/x-www-form-urlencoded"},
-            data=urlencode({
-                "username": self._configured_username,
-                "password": self._configured_password,
-                "csrfToken": csrf,
-                "redirect": "false",
-                "callbackUrl": self.api,
-            }),
-            allow_redirects=True,
-            timeout=15,
-        )
+        with suppress_insecure_request_warning():
+            login_resp = s.post(
+                f"{self.api}/api/auth/callback/credentials",
+                headers={"content-type": "application/x-www-form-urlencoded"},
+                data=urlencode({
+                    "username": self._configured_username,
+                    "password": self._configured_password,
+                    "csrfToken": csrf,
+                    "redirect": "false",
+                    "callbackUrl": self.api,
+                }),
+                allow_redirects=True,
+                timeout=15,
+            )
         self._session = s
         self._username = self._configured_username
         self._password = self._configured_password
@@ -870,9 +874,10 @@ class MoeMailMailbox(BaseMailbox):
         self._username = username
         self._password = password
         print(f"[MoeMail] 注册账号: {username} / {password}")
-        r_reg = s.post(f"{self.api}/api/auth/register",
-            json={"username": username, "password": password, "turnstileToken": ""},
-            timeout=15)
+        with suppress_insecure_request_warning():
+            r_reg = s.post(f"{self.api}/api/auth/register",
+                json={"username": username, "password": password, "turnstileToken": ""},
+                timeout=15)
         print(f"[MoeMail] 注册结果: {r_reg.status_code} {r_reg.text[:80]}")
         if r_reg.status_code >= 400:
             try:
@@ -881,19 +886,21 @@ class MoeMailMailbox(BaseMailbox):
                 register_error = r_reg.text
             raise RuntimeError(f"MoeMail 注册失败: {str(register_error).strip() or f'HTTP {r_reg.status_code}'}")
         # 获取 CSRF
-        csrf_r = s.get(f"{self.api}/api/auth/csrf", timeout=10)
+        with suppress_insecure_request_warning():
+            csrf_r = s.get(f"{self.api}/api/auth/csrf", timeout=10)
         csrf = csrf_r.json().get("csrfToken", "")
         # 登录
-        login_resp = s.post(f"{self.api}/api/auth/callback/credentials",
-            headers={"content-type": "application/x-www-form-urlencoded"},
-            data=urlencode({
-                "username": username,
-                "password": password,
-                "csrfToken": csrf,
-                "redirect": "false",
-                "callbackUrl": self.api,
-            }),
-            allow_redirects=True, timeout=15)
+        with suppress_insecure_request_warning():
+            login_resp = s.post(f"{self.api}/api/auth/callback/credentials",
+                headers={"content-type": "application/x-www-form-urlencoded"},
+                data=urlencode({
+                    "username": username,
+                    "password": password,
+                    "csrfToken": csrf,
+                    "redirect": "false",
+                    "callbackUrl": self.api,
+                }),
+                allow_redirects=True, timeout=15)
         self._session = s
         token = self._extract_session_token(s)
         if token:
@@ -917,7 +924,8 @@ class MoeMailMailbox(BaseMailbox):
         # 获取可用域名列表，优先选信誉好的域名，避免被 AWS 等平台拒绝
         domain = "sall.cc"
         try:
-            cfg_r = self._session.get(f"{self.api}/api/config", timeout=10)
+            with suppress_insecure_request_warning():
+                cfg_r = self._session.get(f"{self.api}/api/config", timeout=10)
             all_domains = [d.strip() for d in cfg_r.json().get("emailDomains", "sall.cc").split(",") if d.strip()]
             if all_domains:
                 # 从可用域名中筛选优先域名，按 _PREFERRED_DOMAINS 顺序选择
@@ -929,9 +937,10 @@ class MoeMailMailbox(BaseMailbox):
                     domain = random.choice(all_domains)
         except Exception:
             pass
-        r = self._session.post(f"{self.api}/api/emails/generate",
-            json={"name": name, "domain": domain, "expiryTime": 86400000},
-            timeout=15)
+        with suppress_insecure_request_warning():
+            r = self._session.post(f"{self.api}/api/emails/generate",
+                json={"name": name, "domain": domain, "expiryTime": 86400000},
+                timeout=15)
         data = r.json()
         self._email = data.get("email", data.get("address", ""))
         email_id = data.get("id", "")
@@ -979,7 +988,8 @@ class MoeMailMailbox(BaseMailbox):
 
     def get_current_ids(self, account: MailboxAccount) -> set:
         try:
-            r = self._session.get(f"{self.api}/api/emails/{account.account_id}", timeout=10)
+            with suppress_insecure_request_warning():
+                r = self._session.get(f"{self.api}/api/emails/{account.account_id}", timeout=10)
             return {str(m.get("id", "")) for m in r.json().get("messages", [])}
         except Exception:
             return set()
@@ -993,8 +1003,9 @@ class MoeMailMailbox(BaseMailbox):
         pattern = re.compile(code_pattern) if code_pattern else None
         while time.time() - start < timeout:
             try:
-                r = self._session.get(f"{self.api}/api/emails/{account.account_id}",
-                    timeout=10)
+                with suppress_insecure_request_warning():
+                    r = self._session.get(f"{self.api}/api/emails/{account.account_id}",
+                        timeout=10)
                 msgs = r.json().get("messages", [])
                 for msg in msgs:
                     mid = str(msg.get("id", ""))
@@ -1019,8 +1030,9 @@ class MoeMailMailbox(BaseMailbox):
         start = time.time()
         while time.time() - start < timeout:
             try:
-                r = self._session.get(f"{self.api}/api/emails/{account.account_id}",
-                    timeout=10)
+                with suppress_insecure_request_warning():
+                    r = self._session.get(f"{self.api}/api/emails/{account.account_id}",
+                        timeout=10)
                 msgs = r.json().get("messages", [])
                 for msg in msgs:
                     mid = str(msg.get("id", ""))

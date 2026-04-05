@@ -24,6 +24,7 @@ PERSISTED_ACTION_DATA_KEYS = {
     "refresh_token",
     "session_token",
     "id_token",
+    "api_key",
     "client_id",
     "client_secret",
     "workspace_id",
@@ -37,10 +38,24 @@ PERSISTED_ACTION_DATA_KEYS = {
 }
 
 STATEFUL_ACTION_IDS = {"get_account_state", "switch_account"}
+CASHIER_URL_ACTION_IDS = {
+    "payment_link",
+    "generate_trial_link",
+    "get_cashier_url",
+    "generate_checkout_link",
+}
 
 
 def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _extract_action_url(data: dict[str, Any]) -> str:
+    for key in ("cashier_url", "url", "checkout_url"):
+        value = str(data.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
 
 
 def _build_account_overview(platform: str, data: dict[str, Any]) -> dict[str, Any] | None:
@@ -245,8 +260,9 @@ class PlatformRuntime:
                     if overview:
                         summary_updates.update(overview)
                         needs_save = True
-                if "url" in data and command.action_id in {"payment_link", "generate_trial_link"}:
-                    summary_updates["cashier_url"] = data["url"]
+                action_url = _extract_action_url(data)
+                if action_url and command.action_id in CASHIER_URL_ACTION_IDS:
+                    summary_updates["cashier_url"] = action_url
                     needs_save = True
                 if credential_updates:
                     needs_save = True

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { getConfig, getConfigOptions, getPlatforms } from '@/lib/app-data'
 import type { ConfigOptionsResponse } from '@/lib/config-options'
@@ -55,7 +56,18 @@ function getValidityStatus(acc: any) {
 }
 
 function getCompactStatusMeta(acc: any) {
-  return `生命周期:${getLifecycleStatus(acc)} / 套餐:${getPlanState(acc)} / 有效:${getValidityStatus(acc)}`
+  const overview = getAccountOverview(acc)
+  const parts = [
+    `生命周期:${getLifecycleStatus(acc)}`,
+    `套餐:${getPlanState(acc)}`,
+    `有效:${getValidityStatus(acc)}`,
+  ]
+  const remainingCredits = overview?.remaining_credits
+  const usageTotal = overview?.usage_total
+  if (remainingCredits || usageTotal) {
+    parts.push(`额度:${remainingCredits || '-'} / 已用:${usageTotal || '-'}`)
+  }
+  return parts.join(' / ')
 }
 
 function getProviderAccounts(acc: any) {
@@ -71,6 +83,16 @@ function getCashierUrl(acc: any) {
   return overview?.cashier_url || acc?.cashier_url || ''
 }
 
+function getRemainingCredits(acc: any) {
+  const overview = getAccountOverview(acc)
+  return overview?.remaining_credits || overview?.usage?.remaining_credits || ''
+}
+
+function getUsageTotal(acc: any) {
+  const overview = getAccountOverview(acc)
+  return overview?.usage_total || overview?.usage?.aggregated_credit_usage?.total || ''
+}
+
 function getPrimaryToken(acc: any) {
   if (acc?.primary_token) return acc.primary_token
   const credential = getCredentials(acc).find((item: any) => item?.scope === 'platform' && item?.credential_type === 'token' && item?.value)
@@ -83,13 +105,14 @@ function escapeCsvField(value: unknown) {
   return `"${text.replace(/"/g, '""')}"`
 }
 
-async function loadPlatformActions(platform: string) {
+async function loadPlatformActions(platform: string, options?: { force?: boolean }) {
   const key = String(platform || '').trim()
   if (!key) return []
-  if (platformActionsCache.has(key)) {
+  const force = Boolean(options?.force)
+  if (!force && platformActionsCache.has(key)) {
     return platformActionsCache.get(key) || []
   }
-  if (platformActionsPromiseCache.has(key)) {
+  if (!force && platformActionsPromiseCache.has(key)) {
     return platformActionsPromiseCache.get(key) || []
   }
   const pending = apiFetch(`/actions/${key}`)
@@ -105,6 +128,20 @@ async function loadPlatformActions(platform: string) {
     })
   platformActionsPromiseCache.set(key, pending)
   return pending
+}
+
+function buildActionParamDraft(action: any, acc: any) {
+  const params = Array.isArray(action?.params) ? action.params : []
+  const emailPrefix = String(acc?.email || '').split('@')[0] || '开发'
+  const draft: Record<string, string> = {}
+  params.forEach((param: any) => {
+    if (action?.id === 'create_api_key' && param?.key === 'name') {
+      draft[param.key] = `${emailPrefix}开发`
+      return
+    }
+    draft[param?.key || ''] = ''
+  })
+  return draft
 }
 
 // ── 注册弹框 ────────────────────────────────────────────────
@@ -486,9 +523,14 @@ function ActionResultHighlights({ payload }: { payload: any }) {
   const stats: Array<{ label: string; value: any }> = []
   if ('valid' in payload) stats.push({ label: '账号有效', value: payload.valid })
   if (payload.membership_type) stats.push({ label: '套餐', value: payload.membership_type })
+  if (payload.plan) stats.push({ label: '套餐', value: payload.plan })
+  if (payload.plan_id) stats.push({ label: 'Plan ID', value: payload.plan_id })
   if (typeof payload.has_valid_payment_method === 'boolean') stats.push({ label: '已绑卡', value: payload.has_valid_payment_method })
   if ('trial_eligible' in payload) stats.push({ label: '可试用', value: payload.trial_eligible })
   if (payload.trial_length_days) stats.push({ label: '试用天数', value: payload.trial_length_days })
+  if (payload.remaining_credits) stats.push({ label: '剩余额度', value: payload.remaining_credits })
+  if (payload.usage_total) stats.push({ label: '已用额度', value: payload.usage_total })
+  if (payload.plan_credits) stats.push({ label: '总额度', value: payload.plan_credits })
   if (payload.usage_summary?.plan_title) stats.push({ label: 'Kiro 套餐', value: payload.usage_summary.plan_title })
   if ('days_until_reset' in (payload.usage_summary || {})) stats.push({ label: '重置倒计时', value: payload.usage_summary?.days_until_reset })
   if (payload.usage_summary?.next_reset_at) stats.push({ label: '下次重置', value: payload.usage_summary.next_reset_at })
@@ -496,6 +538,9 @@ function ActionResultHighlights({ payload }: { payload: any }) {
   if (payload.desktop_app_state?.app_name) stats.push({ label: '桌面应用', value: payload.desktop_app_state?.app_name })
   if ('running' in (payload.desktop_app_state || {})) stats.push({ label: '桌面已打开', value: payload.desktop_app_state?.running })
   if ('ready' in (payload.desktop_app_state || {})) stats.push({ label: '桌面就绪', value: payload.desktop_app_state?.ready })
+  if (payload.key_prefix) stats.push({ label: 'API Key 前缀', value: payload.key_prefix })
+  if (payload.key_prefix && payload.name) stats.push({ label: 'Key 名称', value: payload.name })
+  if (payload.key_prefix && payload.id) stats.push({ label: 'Key ID', value: payload.id })
 
   const cursorModels = payload.usage_summary?.models && typeof payload.usage_summary.models === 'object'
     ? Object.entries(payload.usage_summary.models)
@@ -680,17 +725,111 @@ function ActionTaskModal({
     </div>
   )
 }
+
+function ActionParamsModal({
+  action,
+  initialValues,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  action: any
+  initialValues: Record<string, string>
+  submitting: boolean
+  onClose: () => void
+  onSubmit: (params: Record<string, string>) => void
+}) {
+  const [form, setForm] = useState<Record<string, string>>(initialValues)
+
+  useEffect(() => {
+    setForm(initialValues)
+  }, [action?.id, initialValues])
+
+  const params = Array.isArray(action?.params) ? action.params : []
+
+  return (
+    <div className="dialog-backdrop" onClick={onClose}>
+      <div
+        className="dialog-panel dialog-panel-md"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">{action?.label || '动作参数'}</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">填写执行该动作所需的参数</p>
+          </div>
+          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-6 py-4 space-y-4">
+          {params.map((param: any) => {
+            const value = form[param.key] ?? ''
+            if (Array.isArray(param.options) && param.options.length > 0) {
+              return (
+                <label key={param.key} className="block">
+                  <div className="mb-1 text-xs text-[var(--text-muted)]">{param.label || param.key}</div>
+                  <select
+                    value={value}
+                    onChange={e => setForm(current => ({ ...current, [param.key]: e.target.value }))}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-hover)] px-3 py-2 text-sm outline-none focus:border-[var(--text-accent)]"
+                  >
+                    {param.options.map((option: string) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              )
+            }
+            if (param.type === 'textarea') {
+              return (
+                <label key={param.key} className="block">
+                  <div className="mb-1 text-xs text-[var(--text-muted)]">{param.label || param.key}</div>
+                  <textarea
+                    value={value}
+                    onChange={e => setForm(current => ({ ...current, [param.key]: e.target.value }))}
+                    rows={3}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-hover)] px-3 py-2 text-sm outline-none focus:border-[var(--text-accent)]"
+                  />
+                </label>
+              )
+            }
+            return (
+              <label key={param.key} className="block">
+                <div className="mb-1 text-xs text-[var(--text-muted)]">{param.label || param.key}</div>
+                <input
+                  type={param.type === 'number' ? 'number' : 'text'}
+                  value={value}
+                  onChange={e => setForm(current => ({ ...current, [param.key]: e.target.value }))}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-hover)] px-3 py-2 text-sm outline-none focus:border-[var(--text-accent)]"
+                />
+              </label>
+            )
+          })}
+        </div>
+        <div className="px-6 py-4 border-t border-[var(--border)] flex gap-3">
+          <Button onClick={() => onSubmit(form)} disabled={submitting} className="flex-1">
+            {submitting ? '执行中...' : '执行'}
+          </Button>
+          <Button variant="outline" onClick={onClose} disabled={submitting} className="flex-1">取消</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 // ── 行操作菜单 ─────────────────────────────────────────────
 function ActionMenu({
   acc,
   onDetail,
   onDelete,
   onResult,
+  onChanged,
 }: {
   acc: any
   onDetail: () => void
   onDelete: () => void
   onResult: (title: string, payload: any) => void
+  onChanged: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [actions, setActions] = useState<any[]>([])
@@ -698,7 +837,38 @@ function ActionMenu({
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [actionTask, setActionTask] = useState<{ taskId: string; title: string } | null>(null)
   const [actionTaskStatus, setActionTaskStatus] = useState<string | null>(null)
+  const [pendingAction, setPendingAction] = useState<{ action: any; params: Record<string, string> } | null>(null)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, maxHeight: 320 })
   const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+
+    const rect = trigger.getBoundingClientRect()
+    const viewportPadding = 12
+    const menuWidth = 220
+    const estimatedHeight = Math.min(320, actions.length * 40 + 56)
+
+    let left = rect.right - menuWidth
+    if (left < viewportPadding) left = viewportPadding
+    if (left + menuWidth > window.innerWidth - viewportPadding) {
+      left = Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding)
+    }
+
+    let top = rect.bottom + 8
+    if (top + estimatedHeight > window.innerHeight - viewportPadding) {
+      top = Math.max(viewportPadding, rect.top - estimatedHeight - 8)
+    }
+
+    setMenuPosition({
+      top: Math.round(top),
+      left: Math.round(left),
+      maxHeight: Math.max(160, window.innerHeight - viewportPadding * 2),
+    })
+  }, [actions.length])
+
   useEffect(() => {
     let active = true
     loadPlatformActions(acc.platform)
@@ -717,10 +887,52 @@ function ActionMenu({
   }, [toast])
   useEffect(() => {
     if (!open) return
-    const handler = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false) }
+    let active = true
+    loadPlatformActions(acc.platform, { force: true })
+      .then((items) => {
+        if (active) setActions(items)
+      })
+      .catch(() => {
+        if (active) setActions([])
+      })
+    updateMenuPosition()
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    const reposition = () => updateMenuPosition()
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
+    return () => {
+      active = false
+      document.removeEventListener('mousedown', handler)
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
+    }
+  }, [open, acc.platform, updateMenuPosition])
+
+  const runAction = (action: any, params: Record<string, any>) => {
+    setRunning(action.id)
+    setActionTaskStatus(null)
+    apiFetch(`/actions/${acc.platform}/${acc.id}/${action.id}`, { method: 'POST', body: JSON.stringify({ params }) })
+      .then(task => {
+        if (!task?.task_id) {
+          setRunning(null)
+          setToast({ type: 'error', text: '任务创建失败' })
+          return
+        }
+        setActionTask({
+          taskId: task.task_id,
+          title: `${acc.email} · ${action.label}`,
+        })
+      })
+      .catch(() => {
+        setRunning(null)
+        setToast({ type: 'error', text: '请求失败' })
+      })
+  }
 
   const handleActionDone = async (status: string) => {
     if (!actionTask) return
@@ -733,11 +945,21 @@ function ActionMenu({
         setToast({ type: 'error', text: task?.error || getTaskStatusText(status) })
         return
       }
+      onChanged()
       const actionUrl = data?.url || data?.checkout_url || data?.cashier_url
       if (actionUrl) {
         window.open(actionUrl, '_blank')
+        try {
+          await navigator.clipboard.writeText(actionUrl)
+        } catch {
+          // ignore clipboard failures
+        }
       }
       if (data && typeof data === 'object') {
+        if (actionUrl) {
+          setToast({ type: 'success', text: data.message || '支付链接已在新标签打开，链接已复制' })
+          return
+        }
         const detailKeys = Object.keys(data).filter(key => !['message', 'url', 'checkout_url', 'cashier_url'].includes(key))
         if (detailKeys.length > 0) {
           onResult(actionTask.title, data)
@@ -772,35 +994,44 @@ function ActionMenu({
           onDone={handleActionDone}
         />
       )}
+      {pendingAction && (
+        <ActionParamsModal
+          action={pendingAction.action}
+          initialValues={pendingAction.params}
+          submitting={running === pendingAction.action?.id}
+          onClose={() => {
+            if (!running) setPendingAction(null)
+          }}
+          onSubmit={(params) => {
+            const action = pendingAction.action
+            setPendingAction(null)
+            runAction(action, params)
+          }}
+        />
+      )}
       <button onClick={onDetail} className="table-action-btn">详情</button>
       {actions.length > 0 && (
-        <div className="relative" ref={menuRef}>
-          <button onClick={() => setOpen(o => !o)}
+        <div className="relative">
+          <button ref={triggerRef} onClick={() => setOpen(o => !o)}
             className="table-action-btn">更多 ▾</button>
-          {open && (
-            <div className="absolute right-0 top-11 z-20 min-w-[140px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-card)]/96 py-1.5 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+          {open && typeof document !== 'undefined' && createPortal(
+            <div
+              ref={menuRef}
+              className="fixed z-[9999] w-[220px] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--bg-card)]/96 py-1.5 shadow-[var(--shadow-soft)] backdrop-blur-xl"
+              style={{ top: menuPosition.top, left: menuPosition.left, maxHeight: menuPosition.maxHeight }}
+            >
               {actions.map(a => (
                 <button key={a.id}
                   onClick={() => {
                     setOpen(false)
-                    setRunning(a.id)
-                    setActionTaskStatus(null)
-                    apiFetch(`/actions/${acc.platform}/${acc.id}/${a.id}`, { method: 'POST', body: JSON.stringify({ params: {} }) })
-                      .then(task => {
-                        if (!task?.task_id) {
-                          setRunning(null)
-                          setToast({ type: 'error', text: '任务创建失败' })
-                          return
-                        }
-                        setActionTask({
-                          taskId: task.task_id,
-                          title: `${acc.email} · ${a.label}`,
-                        })
+                    if (Array.isArray(a.params) && a.params.length > 0) {
+                      setPendingAction({
+                        action: a,
+                        params: buildActionParamDraft(a, acc),
                       })
-                      .catch(() => {
-                        setRunning(null)
-                        setToast({ type: 'error', text: '请求失败' })
-                      })
+                      return
+                    }
+                    runAction(a, {})
                   }}
                   disabled={!!running}
                   className="w-full px-3 py-2 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50">
@@ -819,7 +1050,8 @@ function ActionMenu({
               >
                 删除
               </button>
-            </div>
+            </div>,
+            document.body,
           )}
         </div>
       )}
@@ -878,6 +1110,12 @@ function DetailModal({ acc, onClose, onSave }: { acc: any; onClose: () => void; 
             <ResultStat label="套餐状态" value={getPlanState(acc)} />
             <ResultStat label="套餐名称" value={acc.plan_name || overview.plan_name || overview.plan} />
           </div>
+          {(getRemainingCredits(acc) || getUsageTotal(acc)) && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ResultStat label="剩余额度" value={getRemainingCredits(acc) || '-'} />
+              <ResultStat label="已用额度" value={getUsageTotal(acc) || '-'} />
+            </div>
+          )}
           {(overview?.chips?.length > 0 || verificationMailbox?.email) && (
             <div className="space-y-2">
               {overview?.chips?.length > 0 && (
@@ -1446,6 +1684,7 @@ export default function Accounts() {
                     onDetail={() => setDetail(acc)}
                     onDelete={() => load()}
                     onResult={(title, payload) => setActionResult({ title, payload })}
+                    onChanged={() => load()}
                   />
                 </td>
               </tr>

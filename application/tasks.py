@@ -610,7 +610,9 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
             logger.log(f"✓ 注册成功: {account.email}")
             _save_task_log(platform_name, account.email, "success")
             _auto_upload_cpa(logger, account)
-            cashier_url = (account.extra or {}).get("cashier_url", "")
+            extra = dict(account.extra or {})
+            overview = dict(extra.get("account_overview") or {})
+            cashier_url = str(extra.get("cashier_url") or overview.get("cashier_url") or "")
             if cashier_url:
                 logger.log(f"  [升级链接] {cashier_url}")
                 logger.add_cashier_url(cashier_url)
