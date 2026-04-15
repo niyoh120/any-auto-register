@@ -12,6 +12,7 @@ build/
 # 数据库
 *.db
 *.sqlite
+*.db.*.bak
 
 # 日志
 logs/
@@ -34,7 +35,6 @@ electron/backend/
 # PyInstaller
 backend.spec
 static/
-/build/
 
 # Docker 数据
 data/
@@ -42,6 +42,9 @@ data/
 # 环境变量
 .env
 .env.local
+
+# 文档
+docs/
 
 # macOS
 .DS_Store
@@ -51,3 +54,7 @@ data/
 .vscode/
 *.swp
 .ace-tool/
+
+# AI 工具
+AGENTS.md
+.claude/
