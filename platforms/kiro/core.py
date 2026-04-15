@@ -1506,10 +1506,10 @@ class KiroRegister:
 #  laoudo.com 邮箱 API (当前使用)
 # ═══════════════════════════════════════════
 LAOUDO_API = "https://laoudo.com/api/email"
-LAOUDO_ACCOUNT_ID = "560"
-LAOUDO_AUTH = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjU2MCwidG9rZW4iOiJhYzIwZTQyYS1hODM4LTQzYzItOTNlYi04ZDUyOTNiMjgwYWUiLCJpYXQiOjE3NzM1NDc5MDJ9.-QFsJ7G9CRMA-Mj2Yz9Mt8gqaLpwMfGRszwYbOuSm0M")
-# 固定邮箱地址 (laoudo accountId=554 对应的邮箱)
-LAOUDO_EMAIL = "lfjlaf@laoudo.com"
+LAOUDO_ACCOUNT_ID = ""  # 在全局配置中设置
+LAOUDO_AUTH = ""  # 在全局配置中设置
+# 固定邮箱地址
+LAOUDO_EMAIL = ""  # 在全局配置中设置
 
 def _laoudo_headers():
     return {

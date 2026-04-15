@@ -59,7 +59,7 @@
       "fields": [
         { "key": "duckmail_api_url", "label": "Web URL", "placeholder": "https://www.duckmail.sbs", "default_value": "https://www.duckmail.sbs", "category": "connection" },
         { "key": "duckmail_provider_url", "label": "Provider URL", "placeholder": "https://api.duckmail.sbs", "default_value": "https://api.duckmail.sbs", "category": "connection" },
-        { "key": "duckmail_bearer", "label": "Bearer Token", "placeholder": "kevin273945", "default_value": "kevin273945", "secret": true, "category": "auth" }
+        { "key": "duckmail_bearer", "label": "Bearer Token", "placeholder": "", "default_value": "", "secret": true, "category": "auth" }
       ]
     },
     {
