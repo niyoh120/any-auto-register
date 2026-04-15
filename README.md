@@ -8,13 +8,18 @@
 
 ## 功能特性
 
-- **多平台支持**：ChatGPT、Cursor、Kiro、Trae.ai、Tavily、Grok、Blink、OpenBlockLabs，支持自定义插件扩展（Anything 通用适配器）
+- **多平台支持**：ChatGPT、Cursor、Kiro、Trae.ai、Tavily、Grok、Blink、Cerebras、OpenBlockLabs，支持自定义插件扩展（Anything 通用适配器）
 - **多邮箱服务**：MoeMail（自建）、Laoudo、DuckMail、Testmail、Cloudflare Worker 自建邮箱、Freemail、TempMail.lol、Temp-Mail Web
 - **多执行模式**：API 协议（无浏览器）、无头浏览器、有头浏览器（各平台按需支持）
 - **验证码服务**：YesCaptcha、2Captcha、本地 Solver（Camoufox）
-- **代理池管理**：自动轮询、成功率统计、自动禁用失效代理
+- **接码服务**：SMS-Activate（支持全球手机号租用，用于需要手机验证的平台）
+- **代理池管理**：静态代理轮询 + 动态代理 API 提取 + 旋转网关代理，成功率统计、自动禁用失效代理
+- **账号生命周期**：定时有效性检测、token 自动续期、trial 过期预警
+- **注册成功率仪表盘**：按平台、按天、按代理的成功率统计，错误聚合分析
 - **并发注册**：可配置并发数
 - **实时日志**：SSE 实时推送注册日志到前端
+- **账号导出**：支持 JSON、CSV、CPA、Sub2API、Kiro-Go、Any2API 多种格式
+- **Any2API 联动**：注册完成后自动推送账号到 Any2API 网关，注册即可用
 - **平台扩展操作**：各平台可自定义操作（如 Kiro 账号切换、Trae Pro 升级链接生成）
 
 ## 技术栈
@@ -120,6 +125,34 @@ npm run dev
 # 访问 http://localhost:5173
 ```
 
+### Docker 部署
+
+一键启动：
+
+```bash
+docker compose up -d
+```
+
+访问 `http://localhost:8000`。数据库自动持久化到 `./data/` 目录。
+
+如需使用有头浏览器模式（headed），可通过 noVNC 在浏览器中查看自动化过程：`http://localhost:6080`。
+
+自定义配置：
+
+```yaml
+# docker-compose.yml
+services:
+  app:
+    environment:
+      - VNC_PASSWORD=your_password  # 设置 VNC 密码（可选）
+```
+
+重新构建（代码更新后）：
+
+```bash
+docker compose up -d --build
+```
+
 ## 邮箱服务配置
 
 注册时需要选择一种邮箱服务用于接收验证码。当前版本的邮箱和验证码配置都由后端 provider catalog 驱动，前端“全局配置”页已经改成列表式 CRUD：
@@ -206,6 +239,90 @@ npm run dev
 | 2Captcha | 需填写 API Key，在 [2captcha.com](https://2captcha.com) 注册获取 |
 | 本地 Solver | 使用 Camoufox 本地解码，需先执行 `python3 -m camoufox fetch` |
 
+## 代理池配置
+
+系统支持两种代理模式，可同时使用：
+
+### 静态代理
+
+在代理管理页手动添加固定代理地址，系统按成功率加权轮询。连续失败 5 次的代理自动禁用。
+
+### 动态代理（API 提取）
+
+在全局配置页添加 proxy provider，系统每次注册时自动从 API 获取新代理：
+
+| Provider | 说明 |
+|----------|------|
+| API 提取代理 | 通过 HTTP API 动态提取代理 IP，适用于大多数代理商的 API 提取接口 |
+| 旋转网关代理 | 固定入口地址，每次请求自动分配不同出口 IP，适用于 BrightData、Oxylabs、IPRoyal 等 |
+
+动态代理优先于静态代理。未配置动态代理时自动回退到静态代理池。
+
+## 接码服务配置
+
+部分平台注册需要手机号验证（如 Cursor），可配置接码服务自动完成：
+
+| 服务 | 说明 |
+|------|------|
+| SMS-Activate | 需填写 API Key，在 [sms-activate.guru](https://sms-activate.guru) 注册获取，支持全球手机号 |
+
+## 账号生命周期管理
+
+系统内置后台生命周期管理器，自动执行以下任务：
+
+- **有效性检测**：每 6 小时自动检测活跃账号是否仍然有效，失效账号标记为 invalid
+- **Token 自动续期**：每 12 小时自动刷新即将过期的 token（当前支持 ChatGPT）
+- **Trial 过期预警**：扫描 trial 账号，即将过期的标记预警，已过期的自动更新状态
+
+也可通过 API 手动触发：
+
+- `POST /api/lifecycle/check` — 手动触发有效性检测
+- `POST /api/lifecycle/refresh` — 手动触发 token 刷新
+- `POST /api/lifecycle/warn` — 手动触发过期预警
+- `GET /api/lifecycle/status` — 查看生命周期管理器状态
+
+## 注册成功率仪表盘
+
+通过 API 查询注册统计数据，用于监控和优化注册流程：
+
+- `GET /api/stats/overview` — 全局概览（总注册数、成功率、账号状态分布）
+- `GET /api/stats/by-platform` — 按平台统计成功率
+- `GET /api/stats/by-day?days=30` — 按天统计注册趋势
+- `GET /api/stats/by-proxy` — 代理成功率排行
+- `GET /api/stats/errors?days=7` — 失败错误聚合
+
+## Any2API 联动
+
+配合 [Any2API](https://github.com/lxf746/any2api) 项目使用，注册完成后自动推送账号到 Any2API 网关，实现注册即可用。
+
+### 配置方法
+
+在全局配置中设置：
+
+| 参数 | 说明 |
+|------|------|
+| `any2api_url` | Any2API 实例地址，如 `http://localhost:8099` |
+| `any2api_password` | Any2API 管理密码 |
+
+配置后，每次注册成功会自动将账号推送到 Any2API 对应的 provider：
+
+| 平台 | 推送目标 |
+|------|----------|
+| Kiro | `kiroAccounts` 账号池 |
+| Grok | `grokTokens` token 池 |
+| Cursor | `cursorConfig` cookie |
+| ChatGPT | `chatgptConfig` token |
+| Blink | `blinkConfig` 凭证 |
+
+未配置 `any2api_url` 时此功能静默跳过，不影响正常注册。
+
+### 手动导出
+
+也可以手动导出账号到 Any2API 或 Kiro-Go 格式：
+
+- `POST /api/accounts/export/any2api` — 导出为 Any2API admin.json 格式（支持多平台混合导出）
+- `POST /api/accounts/export/kiro-go` — 导出为 Kiro-Go config.json 格式
+
 ## 项目结构
 
 ```
@@ -217,6 +334,8 @@ account_manager/
 ├── api/                    # HTTP 路由层
 │   ├── accounts.py         # 账号 CRUD + 导出
 │   ├── account_checks.py   # 账号检测
+│   ├── lifecycle.py        # 生命周期管理
+│   ├── stats.py            # 注册成功率仪表盘
 │   ├── task_commands.py    # 注册任务创建 + SSE
 │   ├── tasks.py            # 任务查询
 │   ├── task_logs.py        # 历史任务日志
@@ -236,10 +355,14 @@ account_manager/
 │   ├── base_platform.py    # 平台基类
 │   ├── base_mailbox.py     # 邮箱服务基类 + 工厂方法
 │   ├── base_captcha.py     # 验证码服务基类
+│   ├── base_sms.py         # 接码服务基类 + SMS-Activate
 │   ├── base_identity.py    # 身份提供者基类
 │   ├── registration/       # 注册流程编排（适配器 + 流程）
+│   ├── lifecycle.py        # 账号生命周期管理
+│   ├── proxy_providers.py  # 动态代理提供者
+│   ├── any2api_sync.py     # Any2API 自动推送
 │   ├── db.py               # 数据模型
-│   ├── proxy_pool.py       # 代理池
+│   ├── proxy_pool.py       # 代理池（静态 + 动态）
 │   ├── registry.py         # 平台插件注册表
 │   ├── scheduler.py        # 定时任务
 │   └── oauth_browser.py    # OAuth 浏览器基类

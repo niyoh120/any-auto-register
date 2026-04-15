@@ -175,5 +175,56 @@
         { "key": "twocaptcha_key", "label": "2Captcha Key", "secret": true, "category": "auth" }
       ]
     }
+  ],
+  "sms": [
+    {
+      "provider_type": "sms",
+      "provider_key": "sms_activate",
+      "driver_type": "sms_activate_api",
+      "label": "SMS-Activate",
+      "description": "sms-activate.guru 接码服务，支持全球手机号租用和短信验证码接收。",
+      "default_auth_mode": "api_key",
+      "auth_modes": [
+        { "value": "api_key", "label": "API Key" }
+      ],
+      "fields": [
+        { "key": "sms_activate_api_key", "label": "API Key", "secret": true, "category": "auth" },
+        { "key": "sms_activate_country", "label": "默认国家", "placeholder": "ru", "default_value": "ru", "category": "identity" }
+      ]
+    }
+  ],
+  "proxy": [
+    {
+      "provider_type": "proxy",
+      "provider_key": "api_extract",
+      "driver_type": "api_extract",
+      "label": "API 提取代理",
+      "description": "通过 HTTP API 动态提取代理 IP。适用于大多数代理商的 API 提取接口，返回 IP:PORT 列表。",
+      "default_auth_mode": "endpoint_only",
+      "auth_modes": [
+        { "value": "endpoint_only", "label": "仅接口地址" },
+        { "value": "username_password", "label": "用户名密码认证" }
+      ],
+      "fields": [
+        { "key": "proxy_api_url", "label": "API 提取地址", "placeholder": "https://api.proxy.com/get?num=1&type=http", "category": "connection" },
+        { "key": "proxy_protocol", "label": "协议", "placeholder": "http", "default_value": "http", "category": "connection" },
+        { "key": "proxy_username", "label": "用户名（可选）", "category": "auth" },
+        { "key": "proxy_password", "label": "密码（可选）", "secret": true, "category": "auth" }
+      ]
+    },
+    {
+      "provider_type": "proxy",
+      "provider_key": "rotating_gateway",
+      "driver_type": "rotating_gateway",
+      "label": "旋转网关代理",
+      "description": "固定入口旋转代理，每次请求自动分配不同出口 IP。适用于 BrightData、Oxylabs、IPRoyal 等。",
+      "default_auth_mode": "endpoint_only",
+      "auth_modes": [
+        { "value": "endpoint_only", "label": "仅网关地址" }
+      ],
+      "fields": [
+        { "key": "proxy_gateway_url", "label": "网关地址", "placeholder": "http://user:pass@gate.provider.com:port", "category": "connection" }
+      ]
+    }
   ]
 }

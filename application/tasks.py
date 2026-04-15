@@ -452,6 +452,15 @@ class TaskLogger:
         )
 
 
+def _auto_push_any2api(task_logger: TaskLogger, account) -> None:
+    """注册成功后自动推送账号到 Any2API（如果已配置）。"""
+    try:
+        from core.any2api_sync import push_account_to_any2api
+        push_account_to_any2api(account, log_fn=task_logger.log)
+    except Exception as exc:
+        task_logger.log(f"  [Any2API] 自动推送异常: {exc}", level="warning")
+
+
 def _auto_upload_cpa(task_logger: TaskLogger, account) -> None:
     if getattr(account, "platform", "") != "chatgpt":
         return
@@ -479,7 +488,7 @@ def _auto_upload_cpa(task_logger: TaskLogger, account) -> None:
         task_logger.log(f"  [CPA] 自动上传异常: {exc}", level="warning")
 
 
-def _build_platform_instance(platform_name: str, payload: dict[str, Any], logger: TaskLogger, resolved_proxy: str | None = None):
+def _build_platform_instance(platform_name: str, payload: dict[str, Any], logger: TaskLogger, resolved_proxy: str | None = None, shared_mailbox=None):
     from core.base_identity import normalize_identity_provider
     from core.base_mailbox import create_mailbox
 
@@ -493,8 +502,8 @@ def _build_platform_instance(platform_name: str, payload: dict[str, Any], logger
         extra=extra,
     )
     identity_provider = normalize_identity_provider(extra.get("identity_provider", "mailbox"))
-    mailbox = None
-    if identity_provider == "mailbox":
+    mailbox = shared_mailbox
+    if mailbox is None and identity_provider == "mailbox":
         if not extra.get("mail_provider"):
             from infrastructure.provider_settings_repository import ProviderSettingsRepository
 
@@ -593,11 +602,35 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
     success = 0
     errors: list[str] = []
 
+    # Pre-create a shared mailbox instance for the entire task to avoid
+    # concurrent initialization issues (e.g. MoeMail auto-registering
+    # multiple provider accounts simultaneously).
+    shared_mailbox = None
+    try:
+        from core.base_identity import normalize_identity_provider
+        from core.base_mailbox import create_mailbox
+
+        extra = dict(payload.get("extra") or {})
+        identity_provider = normalize_identity_provider(extra.get("identity_provider", "mailbox"))
+        if identity_provider == "mailbox":
+            if not extra.get("mail_provider"):
+                from infrastructure.provider_settings_repository import ProviderSettingsRepository
+                extra["mail_provider"] = ProviderSettingsRepository().get_default_provider_key("mailbox")
+            shared_mailbox = create_mailbox(
+                provider=extra.get("mail_provider", ""),
+                extra=extra,
+                proxy=proxy or None,
+            )
+    except Exception as exc:
+        logger.log(f"邮箱初始化失败: {exc}", level="error")
+        logger.finish(TASK_STATUS_FAILED, error=f"邮箱初始化失败: {exc}")
+        return
+
     def _do_one(index: int) -> bool | str:
         if logger.is_cancel_requested():
             return "__cancel_requested__"
         resolved_proxy = proxy or proxy_pool.get_next()
-        platform = _build_platform_instance(platform_name, payload, logger, resolved_proxy=resolved_proxy)
+        platform = _build_platform_instance(platform_name, payload, logger, resolved_proxy=resolved_proxy, shared_mailbox=shared_mailbox)
         try:
             logger.log(f"开始注册第 {index + 1}/{count} 个账号")
             if resolved_proxy:
@@ -610,6 +643,7 @@ def _execute_register_task(payload: dict[str, Any], logger: TaskLogger) -> None:
             logger.log(f"✓ 注册成功: {account.email}")
             _save_task_log(platform_name, account.email, "success")
             _auto_upload_cpa(logger, account)
+            _auto_push_any2api(logger, account)
             extra = dict(account.extra or {})
             overview = dict(extra.get("account_overview") or {})
             cashier_url = str(extra.get("cashier_url") or overview.get("cashier_url") or "")

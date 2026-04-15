@@ -12,7 +12,22 @@ class ProxyPool:
         self._lock = threading.Lock()
 
     def get_next(self, region: str = "") -> Optional[str]:
-        """加权轮询取一个可用代理，在高成功率代理间轮换"""
+        """获取下一个可用代理。
+
+        优先级:
+          1. 动态代理 provider（如果已配置且启用）
+          2. 静态代理池（数据库中的固定代理列表）
+        """
+        # 1. 尝试动态代理
+        try:
+            from core.proxy_providers import get_dynamic_proxy
+            dynamic = get_dynamic_proxy()
+            if dynamic:
+                return dynamic
+        except Exception:
+            pass
+
+        # 2. 回退到静态代理池
         with Session(engine) as s:
             q = select(ProxyModel).where(ProxyModel.is_active == True)
             if region:

@@ -11,11 +11,13 @@ from api.accounts import router as accounts_router
 from api.actions import router as actions_router
 from api.config import router as config_router
 from api.health import router as health_router
+from api.lifecycle import router as lifecycle_router
 from api.platform_capabilities import router as platform_capabilities_router
 from api.platforms import router as platforms_router
 from api.provider_definitions import router as provider_definitions_router
 from api.provider_settings import router as provider_settings_router
 from api.proxies import router as proxies_router
+from api.stats import router as stats_router
 from api.system import router as system_router
 from api.task_commands import router as task_commands_router
 from api.task_logs import router as task_logs_router
@@ -37,7 +39,11 @@ async def lifespan(app: FastAPI):
     task_runtime.start()
     from services.solver_manager import start_async
     start_async()
+    from core.lifecycle import lifecycle_manager
+    lifecycle_manager.start()
     yield
+    from core.lifecycle import lifecycle_manager as _lifecycle_manager
+    _lifecycle_manager.stop()
     from core.scheduler import scheduler as _scheduler
     _scheduler.stop()
     from services.task_runtime import task_runtime as _task_runtime
@@ -60,11 +66,13 @@ app.include_router(account_checks_router, prefix="/api")
 app.include_router(actions_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
+app.include_router(lifecycle_router, prefix="/api")
 app.include_router(platforms_router, prefix="/api")
 app.include_router(platform_capabilities_router, prefix="/api")
 app.include_router(provider_definitions_router, prefix="/api")
 app.include_router(provider_settings_router, prefix="/api")
 app.include_router(proxies_router, prefix="/api")
+app.include_router(stats_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")
 app.include_router(task_commands_router, prefix="/api")
 app.include_router(task_logs_router, prefix="/api")

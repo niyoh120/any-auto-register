@@ -41,16 +41,31 @@ function startBackend() {
   })
 }
 
-function waitForBackend(retries = 30) {
+function waitForBackend(retries = 90) {
   return new Promise((resolve, reject) => {
+    let backendExited = false
+
+    // Watch for backend process exit to fail fast
+    if (backendProcess) {
+      backendProcess.on('exit', (code) => {
+        backendExited = true
+      })
+    }
+
     const attempt = (n) => {
-      http.get(`http://localhost:${PORT}/api/platforms`, (res) => {
+      // If backend process already exited, don't keep retrying
+      if (backendExited) {
+        reject(new Error('后端进程已退出，请检查日志'))
+        return
+      }
+
+      http.get(`http://localhost:${PORT}/api/health`, (res) => {
         if (res.statusCode < 500) resolve()
         else if (n > 0) setTimeout(() => attempt(n - 1), 1000)
-        else reject(new Error('后端启动超时'))
+        else reject(new Error('后端启动超时（90秒），请检查防火墙或端口占用'))
       }).on('error', () => {
         if (n > 0) setTimeout(() => attempt(n - 1), 1000)
-        else reject(new Error('后端启动超时'))
+        else reject(new Error('后端启动超时（90秒），请检查防火墙或端口占用'))
       })
     }
     attempt(retries)
@@ -95,7 +110,17 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   if (backendProcess) {
-    backendProcess.kill()
+    // On Windows, child_process.kill() doesn't kill the process tree.
+    // Use taskkill to ensure all child processes are terminated.
+    if (process.platform === 'win32') {
+      try {
+        require('child_process').execSync(`taskkill /pid ${backendProcess.pid} /T /F`, { stdio: 'ignore' })
+      } catch (_) {
+        backendProcess.kill()
+      }
+    } else {
+      backendProcess.kill()
+    }
     backendProcess = null
   }
 })

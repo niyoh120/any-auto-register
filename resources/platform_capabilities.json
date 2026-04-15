@@ -43,5 +43,10 @@
     "supported_executors": ["protocol"],
     "supported_identity_modes": ["mailbox"],
     "supported_oauth_providers": []
+  },
+  "cerebras": {
+    "supported_executors": ["protocol"],
+    "supported_identity_modes": ["mailbox"],
+    "supported_oauth_providers": []
   }
 }

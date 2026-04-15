@@ -105,17 +105,33 @@ class ChatGPTPlatform(BasePlatform):
             )
 
         def _map_result(ctx, result):
+            # If refresh_token is missing, try to obtain one via session_token
+            refresh_token = result.refresh_token or ""
+            session_token = result.session_token or ""
+            access_token = result.access_token or ""
+
+            if not refresh_token and session_token:
+                try:
+                    from platforms.chatgpt.token_refresh import TokenRefreshManager
+                    manager = TokenRefreshManager(proxy_url=ctx.proxy)
+                    refresh_result = manager.refresh_by_session_token(session_token)
+                    if refresh_result.success and refresh_result.access_token:
+                        access_token = refresh_result.access_token
+                        ctx.log("  通过 session_token 刷新获取了新的 access_token")
+                except Exception:
+                    pass
+
             return RegistrationResult(
                 email=result.email,
                 password=result.password or (ctx.password or ""),
                 user_id=result.account_id,
-                token=result.access_token,
+                token=access_token,
                 status=AccountStatus.REGISTERED,
                 extra={
-                    "access_token": result.access_token,
-                    "refresh_token": result.refresh_token,
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
                     "id_token": result.id_token,
-                    "session_token": result.session_token,
+                    "session_token": session_token,
                     "workspace_id": result.workspace_id,
                 },
             )
