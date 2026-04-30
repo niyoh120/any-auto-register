@@ -2,8 +2,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import html
+import logging
 import re
 from urllib.parse import urlencode, urlparse
+
+logger = logging.getLogger(__name__)
 
 from core.tls import insecure_request, mark_session_insecure, suppress_insecure_request_warning
 
@@ -311,11 +314,16 @@ def create_mailbox(provider: str, extra: dict = None, proxy: str = None) -> 'Bas
         factory = MAILBOX_FACTORY_REGISTRY.get(lookup_key)
         if not factory:
             continue
-        if lookup_key in ("generic_http_mailbox", "generic_http"):
-            pipeline_config = current_definition.get_metadata() if current_definition else {}
-            providers.append((key, factory(resolved_extra, proxy, pipeline_config=pipeline_config)))
-        else:
-            providers.append((key, factory(resolved_extra, proxy)))
+        try:
+            if lookup_key in ("generic_http_mailbox", "generic_http"):
+                pipeline_config = current_definition.get_metadata() if current_definition else {}
+                providers.append((key, factory(resolved_extra, proxy, pipeline_config=pipeline_config)))
+            else:
+                providers.append((key, factory(resolved_extra, proxy)))
+        except Exception as exc:
+            if key == provider_key:
+                raise RuntimeError(f"邮箱 provider {key} 初始化失败: {exc}") from exc
+            logger.warning("邮箱 provider %s 初始化失败，已跳过: %s", key, exc)
 
     if not providers:
         raise RuntimeError("没有可用的邮箱 provider 实例")

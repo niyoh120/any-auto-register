@@ -40,7 +40,7 @@ class ProviderSettingsRepository:
                 )
                 item.display_name = definition.label or provider_key
                 item.auth_mode = definition.default_auth_mode or ""
-                item.enabled = True
+                item.enabled = bool(definition.enabled)
                 item.is_default = False
                 item.set_config({})
                 item.set_auth({})
