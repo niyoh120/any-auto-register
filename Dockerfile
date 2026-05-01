@@ -31,9 +31,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Solver 额外依赖
 RUN pip install --no-cache-dir quart rich
 
-# 安装 patchright 浏览器（Solver 使用 patchright 而非原版 playwright）
+# 安装 patchright/playwright 浏览器（Solver 使用）
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN python -m patchright install chromium --with-deps
+RUN playwright install --with-deps chromium
 
 # 安装 camoufox 浏览器（Solver 的 camoufox 模式使用）
 RUN python -m camoufox fetch
@@ -50,7 +50,7 @@ COPY --from=frontend-builder /app/static ./static
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-# APP_PASSWORD: 设置后需要密码才能访问 Web UI 和 API
+# APP_PASSWORD: 运行时通过 -e APP_PASSWORD=xxx 设置
 # 不设置则无密码保护（适用于本地使用）
 ENV APP_PASSWORD=""
 
