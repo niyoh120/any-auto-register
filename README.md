@@ -442,7 +442,7 @@ docker compose build --no-cache && docker compose up -d
 | QQ 群 | 群号 | 状态 |
 |---|---|---|
 | 一群 | `1081650009` | 已满 |
-| 二群 | `1097916468` | 可加入 |
+| 二群 | `1097916468` | 已满 |
 | 三群 | `100799970` | 可加入 |
 
 直接在 QQ 中搜索群号加入。提交 Bug 或新功能请求请前往 [Issues](https://github.com/lxf746/any-auto-register/issues)。

@@ -438,7 +438,7 @@ Join the user group for latest updates, activation codes, configuration tips, an
 | QQ Group | ID | Status |
 |---|---|---|
 | #1 | `1081650009` | Full |
-| #2 | `1097916468` | Open |
+| #2 | `1097916468` | Full |
 | #3 | `100799970` | Open |
 
 Search the group ID inside QQ. For bugs and feature requests, please use [Issues](https://github.com/lxf746/any-auto-register/issues).
