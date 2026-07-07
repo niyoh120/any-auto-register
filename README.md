@@ -208,13 +208,8 @@ python3 -m uvicorn main:app --port 8000
 
 ### 代理池
 
-| 🌟 推荐代理服务 | 简介说明 |
-| :--- | :--- |
-| <a href="https://www.swiftproxy.net/?ref=lxf746"><img src="assets/swiftproxy.svg" width="130" alt="Swiftproxy"/></a> | **[Swiftproxy](https://www.swiftproxy.net/?ref=lxf746)** — 80M+ 高质量住宅 IP，连接稳定高匿名，动态流量不过期，支持免费测试，完美适配自动化轮询。 |
-| <a href="https://colaproxy.com/?utm_source=lxf746&utm_medium=lxf746&ref=lxf746"><img src="assets/colaproxy.png" width="130" alt="ColaProxy"/></a> | **[ColaProxy](https://colaproxy.com/?utm_source=lxf746&utm_medium=lxf746&ref=lxf746)** — 免费测试 90M+ 海外纯净 IP，单价低至 $0.3/GB，支持住宅 / 移动 / 静态 / 不限量代理，高速轮换 + 多账号环境隔离，降低封禁率。 |
-
 - **静态代理**:代理管理页手动添加,系统按成功率加权轮询,连续失败 5 次自动禁用
-- **API 提取代理**:通过 HTTP API 动态提取代理 IP,适用于大多数代理商
+- **API 提取代理**:通过 HTTP API 动态提取代理 IP
 - **旋转网关代理**:固定入口地址、每次请求自动分配出口 IP,适用于 BrightData / Oxylabs / IPRoyal 等
 
 数据库中启用 `proxy` provider 时,注册会优先尝试动态代理,失败或未配置自动回退到静态池。
@@ -455,23 +450,6 @@ docker compose build --no-cache && docker compose up -d
 [![Star History Chart](https://api.star-history.com/svg?repos=lxf746/any-auto-register&type=Date)](https://star-history.com/#lxf746/any-auto-register&Date)
 
 > 如果这个项目帮你省下了重复劳动的时间,点个 ⭐ 让更多人看到。
-
-## 赞助商
-
-<table>
-<tr>
-<td width="220" align="center">
-<a href="https://www.rapidproxy.io/?ref=lxf" target="_blank">
-<img src="https://www.rapidproxy.io/static/rapidproxy/images/rapid_logo_700.png" alt="RapidProxy" width="180" />
-</a>
-</td>
-<td>
-<b><a href="https://www.rapidproxy.io/?ref=lxf">RapidProxy</a></b> — 高质量住宅代理,智能 IP 轮换,低封禁率,流量不过期,助力数据采集。<br/>
-90M+ 真实住宅 IP · 200+ 国家 / 地区 · 99.9% 在线率 · &lt;0.5s 响应。<br/>
-<a href="https://www.rapidproxy.io/?ref=lxf"><b>免费试用 →</b></a>
-</td>
-</tr>
-</table>
 
 ## License
 

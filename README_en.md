@@ -208,13 +208,8 @@ Field formats are documented inline in the Settings editor — the backend rende
 
 ### Proxy pool
 
-| 🌟 Recommended Proxy | Description |
-| :--- | :--- |
-| <a href="https://www.swiftproxy.net/?ref=lxf746"><img src="assets/swiftproxy.svg" width="130" alt="Swiftproxy"/></a> | **[Swiftproxy](https://www.swiftproxy.net/?ref=lxf746)** — 80M+ high-quality residential IPs, stable and highly anonymous, dynamic traffic never expires, free trial available, perfect fit for automated rotation. |
-| <a href="https://colaproxy.com/?utm_source=lxf746&utm_medium=lxf746&ref=lxf746"><img src="assets/colaproxy.png" width="130" alt="ColaProxy"/></a> | **[ColaProxy](https://colaproxy.com/?utm_source=lxf746&utm_medium=lxf746&ref=lxf746)** — Free trial of 90M+ overseas clean IPs, from $0.3/GB. Residential / mobile / static / unlimited proxies, high-speed rotation + multi-account isolation, lowering ban rate. |
-
 - **Static proxies** — added manually on the Proxy page, weighted by success rate, auto-disabled after 5 consecutive failures
-- **API extraction** — pulls IPs dynamically via HTTP API, works for most vendor extraction endpoints
+- **API extraction** — pulls IPs dynamically via HTTP API
 - **Rotating gateway** — fixed entry, different exit IP per request — works for BrightData / Oxylabs / IPRoyal etc.
 
 When a `proxy` provider is enabled in the database, registration tries dynamic proxies first and falls back to the static pool on failure.
@@ -451,23 +446,6 @@ Search the group ID inside QQ. For bugs and feature requests, please use [Issues
 [![Star History Chart](https://api.star-history.com/svg?repos=lxf746/any-auto-register&type=Date)](https://star-history.com/#lxf746/any-auto-register&Date)
 
 > If this project saved you some repetitive work, a ⭐ helps others find it.
-
-## Sponsors
-
-<table>
-<tr>
-<td width="220" align="center">
-<a href="https://www.rapidproxy.io/?ref=lxf" target="_blank">
-<img src="https://www.rapidproxy.io/static/rapidproxy/images/rapid_logo_700.png" alt="RapidProxy" width="180" />
-</a>
-</td>
-<td>
-<b><a href="https://www.rapidproxy.io/?ref=lxf">RapidProxy</a></b> — High-quality residential proxies with smart IP rotation, low ban rate, and non-expiring traffic. Powerful for data collection.<br/>
-90M+ real residential IPs · 200+ countries / regions · 99.9% uptime · &lt;0.5s response.<br/>
-<a href="https://www.rapidproxy.io/?ref=lxf"><b>Free trial →</b></a>
-</td>
-</tr>
-</table>
 
 ## License
 
